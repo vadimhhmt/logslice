@@ -1,60 +1,94 @@
+// Package filter provides time-range and field-pattern filtering for log entries.
 package filter
 
 import (
+	"fmt"
 	"regexp"
 	"time"
+
+	"github.com/yourorg/logslice/internal/parser"
 )
 
-// Options holds the filtering criteria for log lines.
-type Options struct {
-	From    time.Time
-	To      time.Time
-	Pattern string
-}
-
-// Filter applies time range and field pattern filtering to parsed log entries.
+// Filter holds the criteria used to include or exclude log entries.
 type Filter struct {
-	opts    Options
-	pattern *regexp.Regexp
+	From     *time.Time
+	To       *time.Time
+	Patterns []*regexp.Regexp
 }
 
-// New creates a new Filter from the given Options.
-// Returns an error if the pattern is an invalid regular expression.
+// Options configures a Filter.
+type Options struct {
+	// From is the inclusive start of the time window. Nil means no lower bound.
+	From *time.Time
+	// To is the inclusive end of the time window. Nil means no upper bound.
+	To *time.Time
+	// Patterns is a list of regular expression strings that must ALL match at
+	// least one field value in an entry for it to be included.
+	Patterns []string
+}
+
+// New constructs a Filter from Options, compiling all pattern strings.
+// Returns an error if any pattern fails to compile.
 func New(opts Options) (*Filter, error) {
-	f := &Filter{opts: opts}
-	if opts.Pattern != "" {
-		re, err := regexp.Compile(opts.Pattern)
+	f := &Filter{
+		From: opts.From,
+		To:   opts.To,
+	}
+	for _, raw := range opts.Patterns {
+		re, err := regexp.Compile(raw)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid pattern %q: %w", raw, err)
 		}
-		f.pattern = re
+		f.Patterns = append(f.Patterns, re)
 	}
 	return f, nil
 }
 
-// Match reports whether the given log entry (represented as a raw line and
-// its parsed timestamp) passes all active filter criteria.
-func (f *Filter) Match(line string, ts time.Time) bool {
-	if !f.opts.From.IsZero() && ts.Before(f.opts.From) {
+// Match reports whether entry satisfies all filter criteria.
+//
+// Time-range check: if From or To is set the entry's timestamp must fall
+// within [From, To] (both bounds inclusive). Entries without a parseable
+// timestamp are excluded when a time bound is active.
+//
+// Pattern check: every compiled pattern must match at least one string value
+// found anywhere in the entry's Fields map.
+func (f *Filter) Match(entry parser.Entry) bool {
+	if f.From != nil || f.To != nil {
+		if entry.Timestamp.IsZero() {
+			return false
+		}
+		if !InRange(entry.Timestamp, f.From, f.To) {
+			return false
+		}
+	}
+
+	for _, re := range f.Patterns {
+		if !matchesAnyField(re, entry.Fields) {
+			return false
+		}
+	}
+	return true
+}
+
+// InRange reports whether t falls within the inclusive interval [from, to].
+// A nil from or to pointer means that bound is unbounded.
+func InRange(t time.Time, from, to *time.Time) bool {
+	if from != nil && t.Before(*from) {
 		return false
 	}
-	if !f.opts.To.IsZero() && ts.After(f.opts.To) {
-		return false
-	}
-	if f.pattern != nil && !f.pattern.MatchString(line) {
+	if to != nil && t.After(*to) {
 		return false
 	}
 	return true
 }
 
-// InRange reports whether ts falls within [from, to].
-// A zero value for from or to means that bound is unbounded.
-func InRange(ts, from, to time.Time) bool {
-	if !from.IsZero() && ts.Before(from) {
-		return false
+// matchesAnyField returns true when re matches the string representation of
+// at least one value in fields.
+func matchesAnyField(re *regexp.Regexp, fields map[string]interface{}) bool {
+	for _, v := range fields {
+		if re.MatchString(fmt.Sprintf("%v", v)) {
+			return true
+		}
 	}
-	if !to.IsZero() && ts.After(to) {
-		return false
-	}
-	return true
+	return false
 }
