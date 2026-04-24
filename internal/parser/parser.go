@@ -49,6 +49,24 @@ func ParseLine(line string) (*LogEntry, error) {
 	}, nil
 }
 
+// Field returns the value of a named field from the log entry, along with a
+// boolean indicating whether the field was present.
+func (e *LogEntry) Field(name string) (interface{}, bool) {
+	v, ok := e.Fields[name]
+	return v, ok
+}
+
+// FieldString returns the string value of a named field. If the field is
+// absent or not a string, it returns ("", false).
+func (e *LogEntry) FieldString(name string) (string, bool) {
+	v, ok := e.Fields[name]
+	if !ok {
+		return "", false
+	}
+	s, ok := v.(string)
+	return s, ok
+}
+
 func extractTimestamp(fields map[string]interface{}) (time.Time, error) {
 	for _, key := range TimeFields {
 		val, ok := fields[key]
