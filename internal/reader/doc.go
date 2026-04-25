@@ -1,17 +1,17 @@
-// Package reader provides an asynchronous line-by-line reader for log sources.
+// Package reader provides line-by-line reading of structured log input.
 //
-// It wraps a standard io.Reader (or file path) and delivers non-empty lines
-// over a channel, making it straightforward to integrate with the parser and
-// filter pipeline:
+// It supports reading from an io.Reader or directly from a named file.
+// Empty lines are automatically skipped. The reader exposes a channel-based
+// API so that it can be used in streaming pipelines without loading the
+// entire file into memory.
 //
-//	r, closer, err := reader.NewFromFile("app.log", reader.Options{})
-//	if err != nil { ... }
-//	defer closer.Close()
+// Basic usage:
 //
-//	r.Start()
-//	for line := range r.Lines() {
-//		entry, err := parser.ParseLine(line)
-//		...
+//	r, err := reader.NewFromFile("app.log")
+//	if err != nil {
+//		log.Fatal(err)
 //	}
-//	if err := r.Err(); err != nil { ... }
+//	for line := range r.Lines() {
+//		fmt.Println(line)
+//	}
 package reader
