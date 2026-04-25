@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	base  = time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+	base   = time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
 	before = base.Add(-time.Hour)
 	after  = base.Add(time.Hour)
 )
@@ -67,6 +67,37 @@ func TestFilter_NoConstraints(t *testing.T) {
 	}
 	if !f.Match(`any line`, base) {
 		t.Error("expected match with no constraints")
+	}
+}
+
+func TestFilter_PatternAndTimeRange(t *testing.T) {
+	f, err := filter.New(filter.Options{
+		Pattern: `"level":"error"`,
+		From:    base,
+		To:      after,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		line string
+		ts   time.Time
+		want bool
+	}{
+		{"matching pattern and in range", `{"level":"error"}`, base, true},
+		{"matching pattern but out of range", `{"level":"error"}`, before, false},
+		{"in range but pattern mismatch", `{"level":"info"}`, base, false},
+		{"both mismatched", `{"level":"info"}`, before, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := f.Match(tc.line, tc.ts)
+			if got != tc.want {
+				t.Errorf("Match() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
