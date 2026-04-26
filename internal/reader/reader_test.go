@@ -86,3 +86,18 @@ func TestReader_LineTooLong(t *testing.T) {
 		t.Fatal("expected error for line exceeding MaxLineBytes, got nil")
 	}
 }
+
+func TestReader_MultipleCallsToErrReturnSameError(t *testing.T) {
+	long := strings.Repeat("x", 200)
+	r := New(strings.NewReader(long), Options{MaxLineBytes: 64})
+	collectLines(r)
+
+	err1 := r.Err()
+	err2 := r.Err()
+	if err1 == nil {
+		t.Fatal("expected error for line exceeding MaxLineBytes, got nil")
+	}
+	if err1 != err2 {
+		t.Fatalf("expected Err() to return the same error on repeated calls, got %v and %v", err1, err2)
+	}
+}
