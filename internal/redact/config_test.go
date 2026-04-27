@@ -79,3 +79,20 @@ func TestConfig_InvalidPattern(t *testing.T) {
 		t.Error("expected error for invalid pattern")
 	}
 }
+
+func TestConfig_DisabledIgnoresKeys(t *testing.T) {
+	// When redaction is disabled, BuildRedactor should return nil even if
+	// extra keys or patterns are provided.
+	var cfg redact.Config
+	fs := newFlagSet()
+	redact.RegisterFlags(fs, &cfg)
+	_ = fs.Parse([]string{"-redact-keys", "ssn"})
+	cfg.Finalise()
+	r, err := cfg.BuildRedactor()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r != nil {
+		t.Error("expected nil redactor when disabled, even with extra keys set")
+	}
+}
