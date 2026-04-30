@@ -70,3 +70,9 @@ func (m *Masker) Fields() []string {
 	}
 	return out
 }
+
+// IsMasked reports whether the given field name is configured to be masked.
+func (m *Masker) IsMasked(field string) bool {
+	_, ok := m.fields[field]
+	return ok
+}
