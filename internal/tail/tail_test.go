@@ -76,3 +76,17 @@ func TestTailer_EmptyEntries(t *testing.T) {
 		t.Fatalf("expected empty slice, got %v", got)
 	}
 }
+
+func TestTailer_EntriesReturnsCopy(t *testing.T) {
+	// Mutating the slice returned by Entries should not affect internal state.
+	tr := tail.New(3)
+	for _, m := range []string{"a", "b", "c"} {
+		tr.Push(makeEntry(m))
+	}
+	got := tr.Entries()
+	got[0] = makeEntry("z")
+	second := tr.Entries()
+	if second[0].Fields["msg"] != "a" {
+		t.Errorf("Entries() returned a reference to internal slice; mutation affected state")
+	}
+}
